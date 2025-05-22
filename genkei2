@@ -1,0 +1,159 @@
+import { getAuth, GoogleAuthProvider } from "firebase/auth";
+import { getFirestore } from "firebase/firestore";
+
+Firebase の設定情報
+const firebaseConfig = {
+apiKey: "YOUR_API_KEY",
+authDomain: "YOUR_PROJECT_ID.firebaseapp.com",
+@@ -12,6 +13,7 @@ const firebaseConfig = {
+appId: "YOUR_APP_ID",
+};
+
+Firebase 初期化
+const app = initializeApp(firebaseConfig);
+エクスポート const auth = getAuth(app);
+export const provider = new GoogleAuthProvider();
+@@ -20,9 +22,12 @@ export const db = getFirestore(app);
+store.js
+import { create } from 'zustand';
+
+Zustand によるグローバル状態管理
+export const useTaskStore = create((設定) => ({
+タスク: [],
+tasks: [], // タスク一覧
+persona: 'military', // 初期人格設定
+setTasks: (tasks) => set({ tasks }),
+setPersona: (ペルソナ) => set({ persona }),
+}));
+
+App.jsxの
+@@ -31,6 +36,7 @@ import ログイン from './pages/Login';
+ダッシュボードを './pages/Dashboard' からインポートします。
+インポート './index.css';
+
+// アプリのルーティング設定
+関数 App() {
+戻る (
+<ルーター>
+@@ -52,6 +58,7 @@ import { useNavigate } from 'react-router-dom';
+export default 関数 Login() {
+const navigate = useNavigate();
+
+Google ログイン処理
+const handleLogin = 非同期 () => {
+{ を試す
+signInWithPopup(認証, プロバイダ);
+@@ -75,41 +82,82 @@ import { useEffect, useState } from 'react';
+import { signOut } from 'firebase/auth';
+import { auth, db } from '../firebase';
+import { useNavigate } from 'react-router-dom';
+import { collection, addDoc, onSnapshot, query, where, serverTimestamp, deleteDoc, doc } from 'firebase/firestore';
+import { collection, addDoc, onSnapshot, query, serverTimestamp, deleteDoc, doc, getDoc, setDoc } from 'firebase/firestore';
+import { useTaskStore } from '../store';
+
+export default 関数 Dashboard() {
+const [タスク、setTask] = useState('');
+const [締切日、setDeadline] = useState('');
+const { tasks, setTasks } = useTaskStore();
+const { tasks, setTasks, persona, setPersona } = useTaskStore();
+const ユーザー = auth.currentUser;
+const navigate = useNavigate();
+
+// タスク一覧と人格設定の初期取得
+useEffect(() => {
+if (!user) return;
+const q = query(collection(db, 'users', user.uid, 'tasks'));
+const unsub = onSnapshot(q, (スナップショット) => {
+const taskList = snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() }));
+setTasks(タスクリスト);
+    });
+フェッチペルソナ();
+戻り値 () => unsub();
+}, [ユーザー]);
+
+Firestore からユーザーの人格設定を取得
+const fetchPersona = async () => {
+const ref = doc(db, 'users', user.uid, 'settings', 'persona');
+const snap = await getDoc(ref);
+if (snap.exists()) {
+setPersona(snap.data().type);
+    }
+  };
+
+Firestore に人格設定を保存
+const savePersona = 非同期 (newPersona) => {
+const ref = doc(db, 'users', user.uid, 'settings', 'persona');
+await setDoc(ref, { type: newPersona });
+setPersona(newPersona);
+  };
+
+// タスク追加処理
+const addTask = async () = > {
+if (!task) return;
+await addDoc(collection(db, 'users', user.uid, 'tasks'), {
+テキスト: タスク、
+締切
+created: serverTimestamp(),
+    });
+LINE通知を送信
+sendLineNotification(タスク、期限、ペルソナ);
+setTask('');
+setDeadline('');
+  };
+
+Cloud Function 経由で LINE 通知を送る
+const sendLineNotification = 非同期 (taskText, taskDeadline, userPersona) => {
+{ を試す
+await fetch('https://your-cloud-function-url/sendNotification', {
+メソッド: 'POST',
+ヘッダー: { 'Content-Type': 'application/json' },
+ボディ: JSON.stringify({
+UID: user.uid,
+ペルソナ: userPersona,
+テキスト: taskText,
+deadline: タスクデッドライン
+        })
+      });
+} キャッチ (エラー) {
+console.error('LINE通知エラー:', err);
+    }
+  };
+
+// タスク削除処理
+const removeTask = 非同期 (id) => {
+delete Doc(doc(db, 'users', user.uid, 'tasks', id));
+  };
+
+// ログアウト処理
+const logout = async() = > {
+signOut(auth)を待つ;
+navigate('/');
+@@ -122,6 +170,7 @@ export default function Dashboard() {
+<button onClick={ログアウト} className="text-red-500">ログアウト</button>
+</div>
+<div className="mb-4">
+{/* タスク入力フォーム */}
+<入力
+タイプ="テキスト"
+値={タスク}
+@@ -139,6 +188,20 @@ export default function Dashboard() {
+追加
+</ボタン>
+</div>
+<div className="mb-4">
+{/* 人格キャラ選択 */}
+<label className="block mb-1 font-semibold">通知キャラ選択</label>
+<選択
+value={ペルソナ}
+onChange={(e) => savePersona(e.target.value)}
+className="ボーダーP-2 w-フル"
+        >
+<option value="military">軍人系</option>
+<option value="yandere">病み系</option>
+<option value="cheerful">陽キャ系</option>
+</選択します>
+</div>
+{/* タスク一覧 */}
+<UL>
+{tasks.map((t) => (
+<li key={t.id} className="border p-2 mb-2 flex justify-between">
